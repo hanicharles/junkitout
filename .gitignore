@@ -1,0 +1,15 @@
+.env
+.env.local
+.env.*.local
+.next/
+node_modules/
+prisma/*.db
+prisma/*.db-journal
+npm-debug.log*
+.vercel
+.env*
+!.env.example
+scratch/
+*.tsbuildinfo
+
+

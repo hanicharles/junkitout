@@ -1,0 +1,325 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String               @id @default(uuid())
+  phone              String               @unique
+  email              String?              @unique
+  name               String
+  passwordHash       String?
+  role               String               @default("CUSTOMER")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  addresses          Address[]
+  admin              Admin?
+  agent              Agent?
+  auditLogs          AuditLog[]
+  customer           Customer?
+  notifications      Notification[]
+  orderStatusChanges OrderStatusHistory[]
+  weightRecords      WeightRecord[]
+}
+
+model Customer {
+  id           String       @id @default(uuid())
+  userId       String       @unique
+  referralCode String?      @unique
+  points       Int          @default(0)
+  createdAt    DateTime     @default(now())
+  complaints   Complaint[]
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders       Order[]
+  reviews      Review[]
+  settlements  Settlement[]
+}
+
+model Agent {
+  id            String          @id @default(uuid())
+  userId        String          @unique
+  vehicleType   String          @default("Three-Wheeler Auto Loading")
+  vehicleNumber String          @default("KA-05-JK-1024")
+  status        String          @default("OFFLINE")
+  currentLat    Float           @default(12.9166)
+  currentLng    Float           @default(77.5996)
+  rating        Float           @default(4.9)
+  serviceAreas  String          @default("JP Nagar, Jayanagar, Koramangala, Electronic City")
+  tokenVersion  Int             @default(1)
+  createdAt     DateTime        @default(now())
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locations     AgentLocation[]
+  orders        Order[]
+  reviews       Review[]
+}
+
+model Admin {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  department  String   @default("Operations")
+  accessLevel String   @default("FULL")
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Address {
+  id                 String   @id @default(uuid())
+  userId             String
+  label              String   @default("Home")
+  name               String
+  phone              String
+  houseNo            String
+  building           String?
+  street             String
+  area               String
+  landmark           String?
+  city               String   @default("Bengaluru")
+  pincode            String
+  lat                Float
+  lng                Float
+  googlePlaceId      String?
+  pickupInstructions String?
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders             Order[]
+}
+
+model ServiceArea {
+  id                String        @id @default(uuid())
+  name              String        @unique
+  city              String        @default("Bengaluru")
+  status            String        @default("ACTIVE")
+  etaMinutes        Int           @default(25)
+  basePickupCharge  Float         @default(49.0)
+  boundaryPolygon   String
+  centerLat         Float         @default(12.9166)
+  centerLng         Float         @default(77.5996)
+  pricingMultiplier Float         @default(1.0)
+  createdAt         DateTime      @default(now())
+  pricingRules      PricingRule[]
+}
+
+model WasteCategory {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  description  String
+  icon         String        @default("Trash2")
+  type         String        @default("RECYCLABLE_BUY")
+  pricePerKg   Float         @default(20.0)
+  minWeightKg  Float         @default(1.0)
+  maxWeightKg  Float         @default(500.0)
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  orderItems   OrderItem[]
+  pricingRules PricingRule[]
+}
+
+model PricingRule {
+  id              String        @id @default(uuid())
+  categoryId      String
+  serviceAreaId   String?
+  ratePerKg       Float
+  pickupCharge    Float         @default(49.0)
+  minPickupCharge Float         @default(49.0)
+  urgentSurcharge Float         @default(0.0)
+  createdAt       DateTime      @default(now())
+  category        WasteCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  serviceArea     ServiceArea?  @relation(fields: [serviceAreaId], references: [id])
+}
+
+model Order {
+  id                 String               @id @default(uuid())
+  orderNumber        String               @unique
+  customerId         String
+  agentId            String?
+  addressId          String
+  pickupType         String               @default("ASAP")
+  scheduledSlot      String?
+  status             String               @default("BOOKING_RECEIVED")
+  financialDirection String               @default("JUNKITOUT_PAYS")
+  estimatedTotal     Float                @default(0.0)
+  actualTotal        Float                @default(0.0)
+  pickupCharge       Float                @default(49.0)
+  discountAmount     Float                @default(0.0)
+  finalAmount        Float                @default(0.0)
+  paymentStatus      String               @default("PENDING")
+  wastePhotos        String               @default("[]")
+  cancellationReason String?
+  notes              String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  locations          AgentLocation[]
+  complaints         Complaint[]
+  invoices           Invoice[]
+  notifications      Notification[]
+  address            Address              @relation(fields: [addressId], references: [id])
+  agent              Agent?               @relation(fields: [agentId], references: [id])
+  customer           Customer             @relation(fields: [customerId], references: [id])
+  items              OrderItem[]
+  statusHistory      OrderStatusHistory[]
+  payments           Payment[]
+  reviews            Review?
+  settlement         Settlement?
+  weightRecords      WeightRecord[]
+}
+
+model OrderItem {
+  id              String        @id @default(uuid())
+  orderId         String
+  categoryId      String
+  estimatedWeight Float         @default(5.0)
+  actualWeight    Float?
+  ratePerKg       Float         @default(20.0)
+  subtotal        Float         @default(0.0)
+  category        WasteCategory @relation(fields: [categoryId], references: [id])
+  order           Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model WeightRecord {
+  id               String   @id @default(uuid())
+  orderId          String
+  recordedByUserId String
+  scalePhotoUrl    String?
+  weightJson       String
+  notes            String?
+  createdAt        DateTime @default(now())
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  recordedBy       User     @relation(fields: [recordedByUserId], references: [id])
+}
+
+model Payment {
+  id             String   @id @default(uuid())
+  orderId        String
+  amount         Float
+  direction      String   @default("JUNKITOUT_PAYS")
+  gateway        String   @default("RAZORPAY")
+  gatewayOrderId String?
+  paymentId      String?
+  signature      String?
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Settlement {
+  id            String    @id @default(uuid())
+  orderId       String    @unique
+  customerId    String
+  totalWeightKg Float
+  amount        Float
+  breakdownJson String
+  status        String    @default("PENDING")
+  createdAt     DateTime  @default(now())
+  approvedAt    DateTime?
+  paidAt        DateTime?
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model AgentLocation {
+  id        String   @id @default(uuid())
+  agentId   String
+  orderId   String?
+  lat       Float
+  lng       Float
+  speed     Float?   @default(0.0)
+  timestamp DateTime @default(now())
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  order     Order?   @relation(fields: [orderId], references: [id])
+}
+
+model OrderStatusHistory {
+  id              String   @id @default(uuid())
+  orderId         String
+  oldStatus       String?
+  newStatus       String
+  changedByUserId String?
+  notes           String?
+  timestamp       DateTime @default(now())
+  changedBy       User?    @relation(fields: [changedByUserId], references: [id])
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id                String   @id @default(uuid())
+  userId            String
+  orderId           String?
+  type              String   @default("WHATSAPP")
+  recipient         String
+  content           String
+  status            String   @default("SENT")
+  provider          String?  @default("FAST2SMS")
+  providerRequestId String?
+  deliveryStatus    String?  @default("sent")
+  statusDescription String?
+  sentAt            DateTime @default(now())
+  order             Order?   @relation(fields: [orderId], references: [id])
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Coupon {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  discountType  String    @default("FLAT")
+  discountValue Float     @default(50.0)
+  minOrderValue Float     @default(100.0)
+  maxDiscount   Float?    @default(100.0)
+  active        Boolean   @default(true)
+  expiryDate    DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+model Complaint {
+  id              String   @id @default(uuid())
+  orderId         String?
+  customerId      String
+  category        String   @default("WEIGHT_DISPUTE")
+  description     String
+  photoUrl        String?
+  status          String   @default("OPEN")
+  resolutionNotes String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  customer        Customer @relation(fields: [customerId], references: [id])
+  order           Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  orderId    String   @unique
+  customerId String
+  agentId    String
+  rating     Int      @default(5)
+  comment    String?
+  createdAt  DateTime @default(now())
+  agent      Agent    @relation(fields: [agentId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id])
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id            String   @id @default(uuid())
+  invoiceNumber String   @unique
+  orderId       String
+  pdfDataJson   String
+  totalAmount   Float
+  createdAt     DateTime @default(now())
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  userName  String   @default("System")
+  action    String
+  oldValue  String?
+  newValue  String?
+  ipAddress String?  @default("127.0.0.1")
+  timestamp DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+}
